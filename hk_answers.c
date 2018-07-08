@@ -27,7 +27,7 @@ const int QRY = 2;
 using namespace std::chrono;
 
 std::vector<Node*> dir_nodes;	// link-cut tree
-std::vector<node> G_und_nodes;
+// std::vector<node> G_und_nodes;
 
 typedef std::map<int, edge> list_of_edges;
 list_of_edges G_edges;
@@ -35,7 +35,7 @@ list_of_edges G_edges;
 // G - {u} for u in V(G)
 std::vector< std::vector<node> > Gs_und_nodes;
 std::vector<list_of_edges> lists_of_edges;
-std::array<hdt_base*, NUMJUNCS + NUMJUNCS> Gmus;
+// std::array<hdt_base*, NUMJUNCS + NUMJUNCS> Gmus;
 
 std::set<int> lc_edges, cyclic_edges;
 
@@ -57,7 +57,7 @@ added_edge(int u, int v, bool recovery, microseconds& time)
 	int key = pairing_function(u, v);
 	for (int i = 0; i < dir_nodes.size(); i++)
 		if ((i != u) && (i != v))
-		{	lists_of_edges[i][key] = Gmus[i]->ins(Gs_und_nodes[i][u], Gs_und_nodes[i][v]);
+		{	// lists_of_edges[i][key] = Gmus[i]->ins(Gs_und_nodes[i][u], Gs_und_nodes[i][v]);
 		}
 
 	return added_to_link_cut(u, v);
@@ -68,7 +68,7 @@ removed_edge(int u, int v, hdt_base& hb)
 {	int key = pairing_function(u, v);
 	for (int i = 0; i < dir_nodes.size(); i++)
 		if ((i != u) && (i != v))
-		{	Gmus[i]->del(lists_of_edges[i][key]);
+		{	// Gmus[i]->del(lists_of_edges[i][key]);
 			auto it = lists_of_edges[i].find(key);
 			lists_of_edges[i].erase(it);
 		}
@@ -83,7 +83,7 @@ removed_edge(int u, int v, hdt_base& hb)
 	LinkCut::cut(dir_nodes[u], dir_nodes[v] , dir_nodes);
 	lc_edges.erase(it);
 
-	if (!hb.connected(G_und_nodes[u], G_und_nodes[v])) return;
+	// if (!hb.connected(G_und_nodes[u], G_und_nodes[v])) return;
 	
 	for (auto it = cyclic_edges.begin(); it != cyclic_edges.end(); it++)
 	{	int u, v;
@@ -141,7 +141,7 @@ are_biconnected(int u, int v, hdt_base& hb, int& chain_len)
 	while (it != (uv_path.end() - 1))
 	{	int w = (*it)->id, u = (*(it - 1))->id, v = (*(it + 1))->id;
 		chain_len++;
-		if (!Gmus[w]->connected(Gs_und_nodes[w][u], Gs_und_nodes[w][v]))
+		// if (!Gmus[w]->connected(Gs_und_nodes[w][u], Gs_und_nodes[w][v]))
 		{	biconnected = false; break; }
 		it++;
 	}
@@ -150,18 +150,19 @@ are_biconnected(int u, int v, hdt_base& hb, int& chain_len)
 
 int
 main(int argc, char** argv)
-{	dc_graph G;
-	G.make_undirected();
+{	/* dc_graph G;
+	G.make_undirected(); */
 
 	std::string s;
 	std::getline(std::cin, s);
 	int n = std::stoi(s);
 
-	for (int i = 0; i < n; i++) G_und_nodes.push_back(G.new_node());
-	for (int i = 0; i < G.number_of_nodes(); i++)
+	// for (int i = 0; i < n; i++) G_und_nodes.push_back(G.new_node());
+	// for (int i = 0; i < G.number_of_nodes(); i++)
+	for (int i = 0; i < n; i++)
 		dir_nodes.push_back(new Node(FOO, i));
 
-	std::vector<dc_graph> Gs;
+	/* std::vector<dc_graph> Gs;
 	for (int i = 0; i < G.number_of_nodes(); i++) Gs.push_back(G);
 
 	for (int i = 0; i < Gs.size(); i++)
@@ -198,6 +199,7 @@ main(int argc, char** argv)
 		}
 	}
 	steady_clock::time_point end = steady_clock::now();
-	std::cout << duration<double>(end - start).count() << " s" << std::endl;
+	std::cout << duration<double>(end - start).count() << " s" << std::endl; */
+	std::cout << "getValue(): " << getValue() << std::endl;
 	return 0;
 }
