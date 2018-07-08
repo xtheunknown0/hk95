@@ -26,41 +26,28 @@ const int QRY = 2;
 
 using namespace std::chrono;
 
-std::vector<Node*> dir_nodes;	// link-cut tree
-// std::vector<node> G_und_nodes;
-
-typedef std::map<int, edge> list_of_edges;
-list_of_edges G_edges;
+std::vector<Node*> VG;	// link-cut tree
+std::set<int> tree_edges, cyclic_edges;
 
 // G - {u} for u in V(G)
-std::vector< std::vector<node> > Gs_und_nodes;
-std::vector<list_of_edges> lists_of_edges;
-// std::array<hdt_base*, NUMJUNCS + NUMJUNCS> Gmus;
+std::vector< std::vector<Node*> > VGmu;
+std::vector< std::set<int> > EGmu, EGmEGmu;
 
-std::set<int> lc_edges, cyclic_edges;
+/* add_edge: add (u, v) to E(G) and all E(G - {w}), w != u, v */
+void
+add_edge(int u, int v)
+{	if (LinkCut::root(VG[u]) != LinkCut::root(VG[v]))
+	{	LinkCut::link(VG[u], VG[v]);	// link u to v
+		tree_edges.insert(pairing_function(u, v));
+	} else cyclic_edges.insert(pairing_function(u, v));
 
-bool
-added_to_link_cut(int u, int v)
-{	if (LinkCut::root(dir_nodes[u]) != LinkCut::root(dir_nodes[v]))
-	{	LinkCut::link(dir_nodes[u], dir_nodes[v]);	// link u to v
-		lc_edges.insert(pairing_function(u, v));
-		return true;
+	for (int w = 0; w < dir_nodes.size(); w++)
+	{	if ((i == u) && (i == v)) continue;
+		if (LinkCut::root(VGmu[w][u]) != LinkCut::root(VG[w][v]))
+		{	LinkCut::link(VGmu[w][u], VG[w][v]);	// link u to v
+			EGmu[w].insert(pairing_function(u, v));
+		} else EGmEGmu[w].insert(pairing_function(u, v));
 	}
-	cyclic_edges.insert(pairing_function(u, v));
-	return false;
-}
-
-bool
-added_edge(int u, int v, bool recovery, microseconds& time)
-{	if (recovery) return added_to_link_cut(u, v);
-
-	int key = pairing_function(u, v);
-	for (int i = 0; i < dir_nodes.size(); i++)
-		if ((i != u) && (i != v))
-		{	// lists_of_edges[i][key] = Gmus[i]->ins(Gs_und_nodes[i][u], Gs_und_nodes[i][v]);
-		}
-
-	return added_to_link_cut(u, v);
 }
 
 void
@@ -73,15 +60,15 @@ removed_edge(int u, int v, hdt_base& hb)
 			lists_of_edges[i].erase(it);
 		}
 
-	auto it = std::find(lc_edges.begin(), lc_edges.end(), key);
-	if (it == lc_edges.end())
+	auto it = std::find(tree_edges.begin(), tree_edges.end(), key);
+	if (it == tree_edges.end())
 	{	it = std::find(cyclic_edges.begin(), cyclic_edges.end(), key);
 		cyclic_edges.erase(it);
 		return;
 	}
 
 	LinkCut::cut(dir_nodes[u], dir_nodes[v] , dir_nodes);
-	lc_edges.erase(it);
+	tree_edges.erase(it);
 
 	// if (!hb.connected(G_und_nodes[u], G_und_nodes[v])) return;
 	
@@ -89,8 +76,7 @@ removed_edge(int u, int v, hdt_base& hb)
 	{	int u, v;
 		inv(*it, u, v);
 		if (LinkCut::root(dir_nodes[u]) != LinkCut::root(dir_nodes[v]))
-		{	microseconds add_time;
-			added_edge(u, v, true, add_time);
+		{	added_edge(u, v, true);
 			cyclic_edges.erase(it);
 			break;
 		}
