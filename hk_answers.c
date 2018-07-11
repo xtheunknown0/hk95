@@ -36,57 +36,74 @@ std::vector< std::set<int> > EGmu, EGmEGmu;
 /* add_edge: add (u, v) to E(G) and all E(G - {w}), w != u, v */
 void
 add_edge(int u, int v)
-{	if (LinkCut::root(VG[u]) != LinkCut::root(VG[v]))
+{	int key = pairing_function(u, v);
+	if (LinkCut::root(VG[u]) != LinkCut::root(VG[v]))
 	{	LinkCut::link(VG[u], VG[v]);	// link u to v
 		tree_edges.insert(pairing_function(u, v));
-	} else cyclic_edges.insert(pairing_function(u, v));
+	} else cyclic_edges.insert(key);
 
-	for (int w = 0; w < dir_nodes.size(); w++)
-	{	if ((i == u) && (i == v)) continue;
-		if (LinkCut::root(VGmu[w][u]) != LinkCut::root(VG[w][v]))
-		{	LinkCut::link(VGmu[w][u], VG[w][v]);	// link u to v
+	for (int w = 0; w < VG.size(); w++)
+	{	if ((w == u) || (w == v)) continue;
+		LinkCut::access(VGmu[w][u]);
+		LinkCut::access(VGmu[w][v]);
+		if (VGmu[w][u]->p == VGmu[w][v]) continue;	// already have tree edge
+		if (LinkCut::root(VGmu[w][u]) != LinkCut::root(VGmu[w][v]))
+		{	LinkCut::link(VGmu[w][u], VGmu[w][v]);	// link u to v
 			EGmu[w].insert(pairing_function(u, v));
-		} else EGmEGmu[w].insert(pairing_function(u, v));
+		} else if (EGmEGmu[w].find(key) == EGmEGmu[w].end())
+			EGmEGmu[w].insert(key);
 	}
 }
 
 void
-removed_edge(int u, int v, hdt_base& hb)
+remove_edge(int u, int v)
 {	int key = pairing_function(u, v);
-	for (int i = 0; i < dir_nodes.size(); i++)
-		if ((i != u) && (i != v))
-		{	// Gmus[i]->del(lists_of_edges[i][key]);
-			auto it = lists_of_edges[i].find(key);
-			lists_of_edges[i].erase(it);
-		}
+	auto it = tree_edges.find(key);
+	if (it == tree_edges.end()) cyclic_edges.erase(key);
+	else
+	{	LinkCut::cut(VG[u], VG[v], VG);
+		tree_edges.erase(it);
 
-	auto it = std::find(tree_edges.begin(), tree_edges.end(), key);
-	if (it == tree_edges.end())
-	{	it = std::find(cyclic_edges.begin(), cyclic_edges.end(), key);
-		cyclic_edges.erase(it);
-		return;
+		auto it2 = cyclic_edges.begin();
+		while (it2 != cyclic_edges.end())
+		{	int x, y;
+			inv(*it2, x, y);
+			if (LinkCut::root(VG[x]) != LinkCut::root(VG[y]))
+			{	LinkCut::link(VG[x], VG[y]);	// link x to y
+				tree_edges.insert(*it2);
+				cyclic_edges.erase(it2);
+				break;
+			}
+			it2++;
+		}
 	}
 
-	LinkCut::cut(dir_nodes[u], dir_nodes[v] , dir_nodes);
-	tree_edges.erase(it);
-
-	// if (!hb.connected(G_und_nodes[u], G_und_nodes[v])) return;
-	
-	for (auto it = cyclic_edges.begin(); it != cyclic_edges.end(); it++)
-	{	int u, v;
-		inv(*it, u, v);
-		if (LinkCut::root(dir_nodes[u]) != LinkCut::root(dir_nodes[v]))
-		{	added_edge(u, v, true);
-			cyclic_edges.erase(it);
-			break;
+	for (int w = 0; w < VG.size(); w++)
+	{	if ((w == u) || (w == v)) continue;
+		if (EGmu[w].find(key) == EGmu[w].end()) EGmEGmu[w].erase(key);
+		else
+		{	LinkCut::cut(VGmu[w][u], VGmu[w][v], VGmu[w]);
+			EGmu[w].erase(key);
+			auto it2 = EGmEGmu[w].begin();
+			while (it2 != EGmEGmu[w].end() )
+			{	int x, y;
+				inv(*it2, x, y);
+				if (LinkCut::root(VGmu[w][x]) != LinkCut::root(VGmu[w][y]))
+				{	LinkCut::link(VGmu[w][x], VGmu[w][y]);	// link x to y
+					EGmu[w].insert(*it2);
+					EGmEGmu[w].erase(it2);
+					break;
+				}
+				it2++;
+			}
 		}
 	}
 }
 
 void
-undirected_from_root(Node *p, std::vector<Node *>& path) {
+undirected_from_root(Node* p, std::vector<Node*>& path) {
 	path.clear();
-	std::stack<Node *> my_stack;
+	std::stack<Node*> my_stack;
 	Node *curr = p;
 
 	while (true)
@@ -100,7 +117,7 @@ undirected_from_root(Node *p, std::vector<Node *>& path) {
 }
 
 void
-undirected_path(std::vector<Node *>& path1, std::vector<Node *>& path2, Node* lca, std::vector<Node *>& path)
+undirected_path(std::vector<Node*>& path1, std::vector<Node*>& path2, Node* lca, std::vector<Node*>& path)
 {	path.clear();
 	if (path1.back() != path2.back()) return;	// path1 & path2 don't intersect
 	for (auto nd : path1)	// left to right
@@ -112,12 +129,14 @@ undirected_path(std::vector<Node *>& path1, std::vector<Node *>& path2, Node* lc
 }
 
 bool
-are_biconnected(int u, int v, hdt_base& hb, int& chain_len)
-{	LinkCut::access(dir_nodes[u]);
-	std::vector<Node *> path_to_u; undirected_from_root(dir_nodes[u],path_to_u);
-	Node* lca = LinkCut::access(dir_nodes[v]);
-	std::vector<Node *> path_to_v; undirected_from_root(dir_nodes[v],path_to_v);
-	std::vector<Node *> uv_path;
+are_biconnected(int u, int v, int& chain_len)
+{	LinkCut::access(VG[u]);
+	std::vector<Node*> path_to_u;
+	undirected_from_root(VG[u], path_to_u);
+	Node* lca = LinkCut::access(VG[v]);
+	std::vector<Node*> path_to_v;
+	undirected_from_root(VG[v], path_to_v);
+	std::vector<Node*> uv_path;
 	undirected_path(path_to_u, path_to_v, lca, uv_path);
 
 	chain_len = 0;
@@ -127,8 +146,14 @@ are_biconnected(int u, int v, hdt_base& hb, int& chain_len)
 	while (it != (uv_path.end() - 1))
 	{	int w = (*it)->id, u = (*(it - 1))->id, v = (*(it + 1))->id;
 		chain_len++;
-		// if (!Gmus[w]->connected(Gs_und_nodes[w][u], Gs_und_nodes[w][v]))
-		{	biconnected = false; break; }
+		if (LinkCut::root(VGmu[w][u]) != LinkCut::root(VGmu[w][v]))
+		{	biconnected = false;
+			std::cout << "(" << u << ", " << v << ") disconnected in G - {" << w
+					  << "}." << std::endl;
+			break;
+		}
+		std::cout << "(" << u << ", " << v << ") connected in G - {" << w
+                  << "}." << std::endl;
 		it++;
 	}
 	return biconnected;
@@ -136,56 +161,53 @@ are_biconnected(int u, int v, hdt_base& hb, int& chain_len)
 
 int
 main(int argc, char** argv)
-{	/* dc_graph G;
-	G.make_undirected(); */
-
-	std::string s;
+{	std::string s;
 	std::getline(std::cin, s);
 	int n = std::stoi(s);
 
-	// for (int i = 0; i < n; i++) G_und_nodes.push_back(G.new_node());
-	// for (int i = 0; i < G.number_of_nodes(); i++)
-	for (int i = 0; i < n; i++)
-		dir_nodes.push_back(new Node(FOO, i));
-
-	/* std::vector<dc_graph> Gs;
-	for (int i = 0; i < G.number_of_nodes(); i++) Gs.push_back(G);
-
-	for (int i = 0; i < Gs.size(); i++)
-	{	Gmus[i] = new hdt_base(Gs[i]);
-		std::vector<node> nv;
-		node a_node; forall_nodes(a_node, Gs[i]) nv.push_back(a_node);
-		Gs_und_nodes.push_back(nv);
-
-		list_of_edges loe;
-		for (int u = 0; u < Gs.size(); u++) lists_of_edges.push_back(loe);
+	for (int u = 0; u < n; u++) VG.push_back(new Node(FOO, u));
+	for (int u = 0; u < n; u++)
+	{	std::vector<Node*> vec;
+		for (int v = 0; v < n; v++) vec.push_back(new Node(FOO, v));
+		VGmu.push_back(vec);
+		std::set<int> S;
+		EGmu.push_back(S);
+		EGmEGmu.push_back(S);
 	}
 
-	hdt_base hb(G);
+	std::set<int> EG;
 	steady_clock::time_point start = steady_clock::now();
 	while (std::getline(std::cin, s))
 	{	int op, u, v;
 		sscanf(s.c_str(), "%d %d %d", &op, &u, &v);
 		if (op == ADD)
 		{	int key = pairing_function(u, v);
-			if (G_edges.find(key) != G_edges.end()) continue;
-			G_edges[key] = hb.ins(G_und_nodes[u], G_und_nodes[v]);
+			if (EG.find(key) == EG.end())
+			{	EG.insert(key);
+				add_edge(u, v);
+				for (int u = 0; u < n; u++)
+					for (int v = u + 1; v < n; v++)
+					{	int chain_len = 0;
+						auto rv = are_biconnected(u, v, chain_len);
+						std::cout << u << " " << v << " " << (rv ?
+								"biconnected" : "not biconnected") << std::endl;
+					}
+			}
 		} else if (op == REM)
 		{	int key = pairing_function(u, v);
-			if (G_edges.find(key) == G_edges.end()) continue;
-			hb.del(G_edges[key]);
-			G_edges.erase(key);
-			removed_edge(u, v, hb);
+			if (EG.find(key) != EG.end())
+			{	EG.erase(key);
+				remove_edge(u, v);
+			}
 		} else
 		{	int chain_len = 0;
-			auto rv = are_biconnected(u, v, hb, chain_len);
-			steady_clock::time_point end_qry = steady_clock::now();
+			auto rv = are_biconnected(u, v, chain_len);
 			std::cout << u << " " << v << " " << (rv ?  "biconnected" :
 					"not biconnected") << std::endl;
 		}
 	}
 	steady_clock::time_point end = steady_clock::now();
-	std::cout << duration<double>(end - start).count() << " s" << std::endl; */
+	std::cout << duration<double>(end - start).count() << " s" << std::endl;
 	std::cout << "getValue(): " << getValue() << std::endl;
 	return 0;
 }
